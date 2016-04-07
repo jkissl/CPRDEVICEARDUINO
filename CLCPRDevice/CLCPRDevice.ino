@@ -8,10 +8,18 @@
 #include <PacketSerial.h>
 #include <EEPROM.h>
 
+#define Position_Output 12
 #define LEDPIN 13
+#define Position_Input A0
 #define PACKET_SIZE 30
+
 uint8_t inPacket[PACKET_SIZE];
 uint8_t outPacket[PACKET_SIZE];
+
+// Create the Packet that contains the position of the cylinder in CM
+byte PositionPacket[2];
+byte *Pos_MSB = &PositionPacket[1];
+byte *Pos_LSB = &PositionPacket[2];
 
 // Software Verson info
 byte MajorFVN_Verson = 1;
@@ -28,8 +36,8 @@ byte MinorHVN_Verson = 5;
 byte HVNPkt[2];
 
 // EEPROM addresses
-int MAJORrev_EEPROM_addr = 0;
-int MINORrev_EEPROM_addr = 1;
+const uint8_t MAJORrev_EEPROM_addr = 0;
+const uint8_t MINORrev_EEPROM_addr = 1;
 
 // CPR Phase Times
 uint16_t CPRPT[4];
@@ -38,10 +46,13 @@ byte CPRPTData[8];
 PacketSerial spUSB;
 
 void setup()
-{
-  // Set the pin mode
+{ 
   pinMode(LEDPIN, OUTPUT);
 
+  // Set the power pin 
+  pinMode(Position_Output, OUTPUT);
+
+  
   // Build the Firmware packet
   FVNPkt[0] = MajorFVN_Verson;
   FVNPkt[1] = MinorFVN_Verson;
@@ -56,11 +67,13 @@ void setup()
   // Turn on the packe communication system
   spUSB.setPacketHandler(&OnUSBPacket);
   spUSB.begin(115200);
+  //Serial.begin(115200);
 }
 
 void loop()
 {
   spUSB.update();
+  Get_Cylinder_Pos();
   delay(10);
 }
 
@@ -161,5 +174,25 @@ void SendFVN()
   outPacket[0] = FVNPkt[0];
   outPacket[1] = FVNPkt[1];
   SendPacket();
+}
+
+/*
+=============================
+Get_Cylinder_Pos()
+Updates the values of the position of the cylinder in CM
+Calculated over the full range of motion of the cylinder 9.5 in or 
+24.1 CM. Using measured analog range values of 865 for 0 cm and 
+393 for 24.1 cm (9.5)in. 
+=============================
+*/
+void Get_Cylinder_Pos()
+{
+  float Position; 
+  float temp;
+  Position = analogRead(Position_Input);
+  Position = (Position*(-.05)) + 44.16; // Convert to CM
+  *Pos_MSB = floor(Position);
+  temp = (Position-floor(Position))*100;
+  *Pos_LSB = temp;
 }
 
